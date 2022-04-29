@@ -9,27 +9,27 @@
       path: /home/nines/ansible/fgtcert/buffer/
 
 - hosts:
-    docker
+    docker01
 
   vars:
     pk_fp: 'buffer/privkey.pem'
     pk_string: "{{ lookup( 'file', pk_fp) }}" 
-    cert_fp: 'buffer/cert.pem'
+    cert_fp: 'buffer/fullchain.pem'
     cert_string: "{{ lookup( 'file', cert_fp) }}"
 
   tasks:
 
   - name: Fetch cert from docker01
-    become: yes
+ #   become: yes
     run_once: yes
-    fetch: src=/home/strn/docker/nginx-proxy-manager/letsencrypt/live/npm-43/cert.pem dest=buffer/ flat=yes
-    when: inventory_hostname == 'docker01'
+    fetch: src=/home/tems/docker/swag/config/keys/letsencrypt/fullchain.pem dest=/home/nines/ansible/fgtcert/buffer/ flat=yes
+    when: inventory_hostname == 'docker01.cc4r.local'
 
   - name: Fetch privkey from docker01
-    become: yes
+#    become: yes
     run_once: yes
-    fetch: src=/home/strn/docker/nginx-proxy-manager/letsencrypt/live/npm-43/privkey.pem dest=buffer/ flat=yes
-    when: inventory_hostname == 'docker01'
+    fetch: src=/home/tems/docker/swag/config/keys/letsencrypt/privkey.pem dest=/home/nines/ansible/fgtcert/buffer/ flat=yes
+    when: inventory_hostname == 'docker01.cc4r.local'
 
   - name: b64 encode cert
     copy:
@@ -47,7 +47,7 @@
 
 
 - hosts:
-    fortigate
+    fortigate_tems
 
   collections:
   - fortinet.fortios
@@ -59,19 +59,53 @@
    ansible_httpapi_port: 444
    private_key_filepath: 'buffer/privkey.pem'
    private_key_string: "{{ lookup( 'file', private_key_filepath) | b64encode }}"
-   cert_filepath: 'buffer/cert.pem'
+   cert_filepath: 'buffer/fullchain.pem'
    cert_string: "{{ lookup( 'file', cert_filepath) | b64encode }}"
-   
+
   tasks:
 
-  - name: Configure SSL/SSH protocol options to Factory
+  - name: set deep inspection cert ems
     fortios_firewall_ssl_ssh_profile:
-      vdom:  "{{ vdom }}"
-      state: "present"
+      state: present
+      vdom: "{{ vdom }}"
       access_token: "{{ fortios_access_token }}"
       firewall_ssl_ssh_profile:
-        name: "custom-deep-inspection-out-in"
+        name: "tems-DI-ems"
         server_cert: "Fortinet_Factory"
+
+  - name: set deep inspection cert webserver
+    fortios_firewall_ssl_ssh_profile:
+      state: present
+      vdom: "{{ vdom }}"
+      access_token: "{{ fortios_access_token }}"
+      firewall_ssl_ssh_profile:
+        name: "tems-DI-webserver"
+        server_cert: "Fortinet_Factory"
+
+  - name: set deep inspection cert nextcloud
+    fortios_firewall_ssl_ssh_profile:
+      state: present
+      vdom: "{{ vdom }}"
+      access_token: "{{ fortios_access_token }}"
+      firewall_ssl_ssh_profile:
+        name: "tems-DI-nextcloud"
+        server_cert: "Fortinet_Factory"
+
+  - name: set deep inspection cert seppmail
+    fortios_firewall_ssl_ssh_profile:
+      state: present
+      vdom: "V_BACKUP"
+      access_token: "{{ fortios_access_token }}"
+      firewall_ssl_ssh_profile:
+        name: "tems-DI-seppmail"
+        server_cert: "Fortinet_Factory"
+
+  - name: set ssl vpn cert
+    fortios_vpn_ssl_settings:
+      vdom: "{{ vdom }}"
+      access_token: "{{ fortios_access_token }}"
+      vpn_ssl_settings:
+        servercert: "Fortinet_Factory"
 
   - name: Delete old vert
     fortios_vpn_certificate_local:
@@ -79,7 +113,7 @@
       state: "absent"
       access_token: "{{ fortios_access_token }}"
       vpn_certificate_local:
-        name: "n9nes"
+        name: "tems.at"
 
   - name: upload cert
     ignore_errors: yes
@@ -89,54 +123,62 @@
       access_token: "{{ fortios_access_token }}"
       selector: 'import.vpn-certificate.local'
       params:
-          certname: "n9nes"
-#          password: ""
+          certname: "tems.at"
           key_file_content: "{{ private_key_string }}"
           file_content: "{{ cert_string }}" 
-          scope: vdom
+          scope: global
           type: regular
 
-  - name: Configure SSL/SSH protocol options to prod
-    fortios_firewall_ssl_ssh_profile:
-      vdom:  "{{ vdom }}"
-      state: "present"
+  - name: set ssl vpn cert root vdom
+    fortios_vpn_ssl_settings:
+      vdom: "{{ vdom }}"
       access_token: "{{ fortios_access_token }}"
+      vpn_ssl_settings:
+        servercert: "tems.at"
+
+  - name: set ssl vpn cert backup vdom
+    fortios_vpn_ssl_settings:
+      vdom: "V_BACKUP"
+      access_token: "{{ fortios_access_token }}"
+      vpn_ssl_settings:
+        servercert: "tems.at"
+
+  - name: set deep inspection cert ems
+    fortios_firewall_ssl_ssh_profile:
+      vdom: "{{ vdom }}"
+      access_token: "{{ fortios_access_token }}"
+      state: present
       firewall_ssl_ssh_profile:
-        name: "custom-deep-inspection-out-in"
-        server_cert: "n9nes"
+        name: "tems-DI-ems"
+        server_cert: "tems.at"
 
-#  - name: update cert
-#    fortios_vpn_certificate_local:
-#      vdom:  "{{ vdom }}"
-#      access_token: "{{ fortios_access_token }}"
-#      state: "present"
-#      vpn_certificate_local:
-#        range: vdom
-#        comments: "test"
-#        name: "n9nes_de"
-#        private_key: "{{ private_key_string }}"
-#        certificate: "{{ cert_string }}"
-#        state: "absent"
-#        source: "user"
-  
-#  - name: disable vip policy
-#    fortios_firewall_policy:
-#      vdom:  "{{ vdom }}"
-#      access_token: "{{ fortios_access_token }}"
-#      state: "present"
-#      firewall_policy:
-#        policyid: 16
-#        status: disable
+  - name: set deep inspection cert webserver
+    fortios_firewall_ssl_ssh_profile:
+      vdom: "{{ vdom }}"
+      access_token: "{{ fortios_access_token }}"
+      state: present
+      firewall_ssl_ssh_profile:
+        name: "tems-DI-webserver"
+        server_cert: "tems.at"
 
-#  - name: enable vip policy         
-#    fortios_firewall_policy:
-#      vdom:  "{{ vdom }}"
-#      access_token: "{{ fortios_access_token }}"
-#      state: "present"
-#      firewall_policy:
-#        policyid: 16
-#        status: enable
+  - name: set deep inspection cert seppmail
+    fortios_firewall_ssl_ssh_profile:
+      vdom: "V_BACKUP"
+      access_token: "{{ fortios_access_token }}"
+      state: present
+      firewall_ssl_ssh_profile:
+        name: "tems-DI-seppmail"
+        server_cert: "tems.at"
 
+
+  - name: set deep inspection cert nextcloud
+    fortios_firewall_ssl_ssh_profile:
+      vdom: "{{ vdom }}"
+      access_token: "{{ fortios_access_token }}"
+      state: present
+      firewall_ssl_ssh_profile:
+        name: "tems-DI-nextcloud"
+        server_cert: "tems.at"
 
 - hosts:
     localhost
