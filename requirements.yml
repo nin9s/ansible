@@ -1,3 +1,1 @@
-
-collections:
-- fortinet.fortios.fortios_monitor
+- src: fortinet.fortios
