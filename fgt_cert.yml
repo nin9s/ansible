@@ -117,7 +117,7 @@
 
   - name: upload cert
     ignore_errors: yes
-    fortios_monitor:
+    fortinet.fortios.fortios_monitor:
       enable_log: true
       vdom: "{{ vdom }}"
       access_token: "{{ fortios_access_token }}"
